@@ -294,9 +294,9 @@ impl Database for Postgres {
     }
 
     fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        // if self.cache.contains(key) {
-        //     return self.cache.get(key);
-        // }
+        if self.cache.contains(key) {
+            return self.cache.get(key);
+        }
 
         let rows: Vec<postgres::Row> = self.db.query(
             "SELECT value FROM smt WHERE key = $1",
@@ -314,7 +314,7 @@ impl Database for Postgres {
     }
 
     fn put(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
-        // self.cache.put(key, value.to_owned())?;
+        self.cache.put(key, value.to_owned())?;
         if self.batch_on {
             let key_vec: Vec<u8> = key.iter().cloned().collect();
             let _ = self.batch.insert(key_vec, value);

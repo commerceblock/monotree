@@ -3,6 +3,7 @@ use monotree::hasher::*;
 use monotree::utils::*;
 use monotree::*;
 use std::fs;
+use std::env;
 
 extern crate paste;
 extern crate scopeguard;
@@ -180,12 +181,13 @@ macro_rules! impl_integration_test {
         paste::item_with_macros! {
             #[test]
             fn [<test_ $d _ $h _ $fn _ $n>]() -> Result<()> {
-                let dbname = format!(".tmp/{}", hex!(random_bytes(4)));
-                let _g = scopeguard::guard((), |_| {
-                    if fs::metadata(&dbname).is_ok() {
-                        fs::remove_dir_all(&dbname).unwrap()
-                    }
-                });
+                // let dbname = format!(".tmp/{}", hex!(random_bytes(4)));
+                let dbname = env::var("MONTREE_URL").unwrap();
+                // let _g = scopeguard::guard((), |_| {
+                //     if fs::metadata(&dbname).is_ok() {
+                //         fs::remove_dir_all(&dbname).unwrap()
+                //     }
+                // });
                 let keys = random_hashes($n);
                 let leaves = random_hashes($n);
                 let tree = Monotree::<$db, $hasher>::new(&dbname);
@@ -235,13 +237,15 @@ impl_test_with_params!(
         insert_keys_then_delete_keys_reversely,
         insert_keys_then_delete_keys_randomly
     ],
-    [("hashmap", MemoryDB), ("rocksdb", RocksDB), ("sled", Sled)],
-    [
-        ("blake3", Blake3),
-        ("blake2s", Blake2s),
-        ("blake2b", Blake2b),
-        ("sha2", Sha2),
-        ("sha3", Sha3)
-    ],
+    // [("hashmap", MemoryDB), ("rocksdb", RocksDB), ("sled", Sled)],
+    // [
+    //     ("blake3", Blake3),
+    //     ("blake2s", Blake2s),
+    //     ("blake2b", Blake2b),
+    //     ("sha2", Sha2),
+    //     ("sha3", Sha3)
+    // ],
+    [("postgres", Postgres)],
+    [("blake3", Blake3)],
     [100, 500, 1000]
 );
