@@ -298,7 +298,6 @@ impl Database for Postgres {
         //     return self.cache.get(key);
         // }
 
-        // let key_vec: Vec<u8> = key.iter().cloned().collect();
         let rows: Vec<postgres::Row> = self.db.query(
             "SELECT value FROM smt WHERE key = $1",
             &[&key])?;
@@ -312,9 +311,7 @@ impl Database for Postgres {
                 }
             }
         }
-
     }
-
 
     fn put(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
         // self.cache.put(key, value.to_owned())?;
@@ -334,30 +331,33 @@ impl Database for Postgres {
     }
 
     fn delete(&mut self, key: &[u8]) -> Result<()> {
-        // self.cache.delete(key)?;
-        // if self.batch_on {
-        //     Ok(self.batch.delete(key)?)
-        // } else {
-        //     let db = self.db.lock().expect("remove(): rocksdb");
-        //     Ok(db.delete(key)?)
-        // }
-        Ok(())
+        self.cache.delete(key)?;
+        if self.batch_on {
+            let _ = self.batch.remove(key);
+            return Ok(());
+        } else {
+            let _ = self.db.execute(
+                "DELETE FROM smt WHERE key = $1;",
+                &[&key])?;
+            return Ok(());
+        }
     }
 
     fn init_batch(&mut self) -> Result<()> {
-        // self.batch = WriteBatch::default();
-        // self.cache.clear();
-        // self.batch_on = true;
+        self.batch = HashMap::new();
+        self.cache.clear();
+        self.batch_on = true;
         Ok(())
     }
 
     fn finish_batch(&mut self) -> Result<()> {
-        // self.batch_on = false;
-        // if !self.batch.is_empty() {
-        //     let batch = std::mem::take(&mut self.batch);
-        //     let db = self.db.lock().expect("write_batch(): rocksdb");
-        //     db.write(batch)?;
-        // }
+        self.batch_on = false;
+        if !self.batch.is_empty() {
+            let batch = std::mem::take(&mut self.batch);
+            for (key, value) in batch.iter() {
+                self.put(key, value.to_owned())?;
+            }
+        }
         Ok(())
     }
 }
