@@ -2,6 +2,7 @@
 use crate::*;
 use hashbrown::{HashMap, HashSet};
 use rocksdb::{WriteBatch, DB};
+use postgres::{Client, NoTls};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use utils::*;
@@ -251,6 +252,112 @@ impl Database for Sled {
         self.batch_on = false;
         let batch = std::mem::take(&mut self.batch);
         self.db.apply_batch(batch)?;
+        Ok(())
+    }
+}
+
+
+/// A database using rust wrapper for `PostgreSQL`.
+pub struct Postgres {
+    db: Client,
+    batch: HashMap<Vec<u8>, Vec<u8>>,
+    cache: MemCache,
+    batch_on: bool,
+}
+
+impl From<postgres::Error> for Errors {
+    fn from(err: postgres::Error) -> Self {
+        Errors::new(&err.to_string())
+    }
+}
+
+impl Database for Postgres {
+    fn new(dbpath: &str) -> Self {
+        let mut conn = Client::connect(dbpath, NoTls).unwrap();
+
+        let _ = conn.execute(
+            "
+            CREATE TABLE IF NOT EXISTS smt (
+                key BYTEA,
+                value BYTEA,
+                PRIMARY KEY (key)
+            );",
+            &[]
+        ).unwrap(); // panic if fail to create table
+
+        Postgres {
+            db: conn,
+            batch: HashMap::new(),
+            cache: MemCache::new(),
+            batch_on: false,
+        }
+    }
+
+    fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        // if self.cache.contains(key) {
+        //     return self.cache.get(key);
+        // }
+
+        // let key_vec: Vec<u8> = key.iter().cloned().collect();
+        let rows: Vec<postgres::Row> = self.db.query(
+            "SELECT value FROM smt WHERE key = $1",
+            &[&key])?;
+
+        match rows.get(0) {
+            None => Ok(None),
+            Some(row) => {
+                match row.try_get(0) {
+                    Err(_) => Ok(None),
+                    Ok(data) => Ok(Some(data))
+                }
+            }
+        }
+
+    }
+
+
+    fn put(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
+        // self.cache.put(key, value.to_owned())?;
+        if self.batch_on {
+            let key_vec: Vec<u8> = key.iter().cloned().collect();
+            let _ = self.batch.insert(key_vec, value);
+            return Ok(());
+        } else {
+            let _ = self.db.execute(
+                "INSERT INTO smt (key, value)
+                VALUES ($1, $2)
+                ON CONFLICT (key) DO UPDATE
+                SET value = EXCLUDED.value;",
+                &[&key, &value])?;
+            return Ok(());
+        };
+    }
+
+    fn delete(&mut self, key: &[u8]) -> Result<()> {
+        // self.cache.delete(key)?;
+        // if self.batch_on {
+        //     Ok(self.batch.delete(key)?)
+        // } else {
+        //     let db = self.db.lock().expect("remove(): rocksdb");
+        //     Ok(db.delete(key)?)
+        // }
+        Ok(())
+    }
+
+    fn init_batch(&mut self) -> Result<()> {
+        // self.batch = WriteBatch::default();
+        // self.cache.clear();
+        // self.batch_on = true;
+        Ok(())
+    }
+
+    fn finish_batch(&mut self) -> Result<()> {
+        // self.batch_on = false;
+        // if !self.batch.is_empty() {
+        //     let batch = std::mem::take(&mut self.batch);
+        //     let db = self.db.lock().expect("write_batch(): rocksdb");
+        //     db.write(batch)?;
+        // }
         Ok(())
     }
 }
