@@ -1,11 +1,14 @@
 //! A module for implementing database supporting `monotree`.
 use crate::*;
 use hashbrown::{HashMap, HashSet};
-use rocksdb::{WriteBatch, DB};
-use postgres::{Client, NoTls};
 use utils::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "db-rocks")]
+use rocksdb::{WriteBatch, DB};
+#[cfg(feature = "db-postgres")]
+use postgres::{Client, NoTls};
+#[cfg(feature = "db-postgres")]
 use std::env;
 
 
@@ -99,6 +102,7 @@ impl Database for MemoryDB {
     }
 }
 
+#[cfg(feature = "db-rocks")]
 /// A database using rust wrapper for `RocksDB`.
 pub struct RocksDB {
     db: Arc<Mutex<DB>>,
@@ -107,12 +111,13 @@ pub struct RocksDB {
     batch_on: bool,
 }
 
+#[cfg(feature = "db-rocks")]
 impl From<rocksdb::Error> for Errors {
     fn from(err: rocksdb::Error) -> Self {
         Errors::new(&err.to_string())
     }
 }
-
+#[cfg(feature = "db-rocks")]
 impl Database for RocksDB {
     fn new(dbpath: &str) -> Self {
         let db = Arc::new(Mutex::new(
@@ -178,6 +183,7 @@ impl Database for RocksDB {
     }
 }
 
+#[cfg(feature = "db-sled")]
 /// A database using `Sled`, a pure-rust-implmented DB.
 pub struct Sled {
     db: sled::Db,
@@ -186,12 +192,14 @@ pub struct Sled {
     batch_on: bool,
 }
 
+#[cfg(feature = "db-sled")]
 impl From<sled::Error> for Errors {
     fn from(err: sled::Error) -> Self {
         Errors::new(&err.to_string())
     }
 }
 
+#[cfg(feature = "db-sled")]
 impl Sled {
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
@@ -199,6 +207,7 @@ impl Sled {
     }
 }
 
+#[cfg(feature = "db-sled")]
 impl Database for Sled {
     fn new(dbpath: &str) -> Self {
         let db = sled::open(dbpath).expect("new(): sledDB");
@@ -260,6 +269,7 @@ impl Database for Sled {
 
 
 /// A database using rust wrapper for `PostgreSQL`.
+#[cfg(feature = "db-postgres")]
 pub struct Postgres {
     db: Client,
     table_name: String,
@@ -268,23 +278,25 @@ pub struct Postgres {
     batch_on: bool,
 }
 
+#[cfg(feature = "db-postgres")]
 impl From<postgres::Error> for Errors {
     fn from(err: postgres::Error) -> Self {
         Errors::new(&err.to_string())
     }
 }
 
+#[cfg(feature = "db-postgres")]
 impl Database for Postgres {
     fn new(dbpath: &str) -> Self {
         let mut conn = Client::connect(dbpath, NoTls).unwrap();
 
         // Get tables Schema and name if it is given. Default to public.smt
-        let table_name = env::var("MONTREE_TABLE_NAME").unwrap();
+        let table_name = env::var("MONOTREE_TABLE_NAME").unwrap_or("smt".to_string());
 
         let stmt = conn.prepare(&format!(
             "CREATE TABLE IF NOT EXISTS {} (
-            key BYTEA,
-            value BYTEA,
+            key integer[],
+            value integer[],
             PRIMARY KEY (key)
         );", table_name)).unwrap();
 
@@ -324,11 +336,11 @@ impl Database for Postgres {
         } else {
             let stmt = self.db.prepare(&format!(
                 "INSERT INTO {} (key, value)
-                VALUES ($1, $2)
+                VALUES (ARRAY{:?}, ARRAY{:?})
                 ON CONFLICT (key) DO UPDATE
                 SET value = EXCLUDED.value;"
-                ,self.table_name))?;
-            self.db.execute(&stmt, &[&key, &value])?;
+                ,self.table_name, key, value))?;
+            self.db.execute(&stmt, &[])?;
         };
         return Ok(());
     }
@@ -355,9 +367,15 @@ impl Database for Postgres {
         self.batch_on = false;
         if !self.batch.is_empty() {
             let batch = std::mem::take(&mut self.batch);
+            let mut stmt_str = format!("INSERT INTO {} (key, value) VALUES", self.table_name);
             for (key, value) in batch.iter() {
-                self.put(key, value.to_owned())?;
+                stmt_str.push_str(&format!(" (ARRAY{:?},ARRAY{:?}),", key, value));
             }
+            stmt_str.truncate(stmt_str.len() - 1);
+            stmt_str.push_str(" ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;");
+
+            let stmt = self.db.prepare(&stmt_str)?;
+            self.db.execute(&stmt, &[])?;
         }
         Ok(())
     }

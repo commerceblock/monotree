@@ -10,8 +10,10 @@ pub trait Hasher {
 }
 
 #[derive(Clone, Debug)]
+#[cfg(feature = "hasher-blake2")]
 /// A hasher using `Blake2s` hash function
 pub struct Blake2s;
+#[cfg(feature = "hasher-blake2")]
 impl Hasher for Blake2s {
     fn new() -> Self {
         Blake2s
@@ -25,9 +27,11 @@ impl Hasher for Blake2s {
     }
 }
 
+#[cfg(feature = "hasher-blake2")]
 #[derive(Clone, Debug)]
 /// A hasher using `Blake2b` hash function
 pub struct Blake2b;
+#[cfg(feature = "hasher-blake2")]
 impl Hasher for Blake2b {
     fn new() -> Self {
         Blake2b
@@ -41,9 +45,11 @@ impl Hasher for Blake2b {
     }
 }
 
+#[cfg(feature = "default")]
 #[derive(Clone, Debug)]
 /// A hasher using `Blake3` hash function
 pub struct Blake3;
+#[cfg(feature = "default")]
 impl Hasher for Blake3 {
     fn new() -> Self {
         Blake3
@@ -58,9 +64,11 @@ impl Hasher for Blake3 {
     }
 }
 
+#[cfg(feature = "hasher-sha2")]
 #[derive(Clone, Debug)]
 /// A hasher using `SHA2` hash function
 pub struct Sha2;
+#[cfg(feature = "hasher-sha2")]
 impl Hasher for Sha2 {
     fn new() -> Self {
         Sha2
@@ -75,9 +83,11 @@ impl Hasher for Sha2 {
     }
 }
 
+#[cfg(feature = "hasher-sha3")]
 #[derive(Clone, Debug)]
 /// A hasher using `SHA3` or `Keccak` hash function
 pub struct Sha3;
+#[cfg(feature = "hasher-sha3")]
 impl Hasher for Sha3 {
     fn new() -> Self {
         Sha3

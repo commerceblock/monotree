@@ -26,6 +26,17 @@ _Hashers include_:
 - [`SHA-2`](https://lib.rs/crates/sha2)
 - [`SHA-3 (Keccak)`](https://lib.rs/crates/sha3)
 
+### Postgres
+To use a Postgres database instance use the "db-postgres" feature flag and provide the database location via environment variable:
+
+- MONOTREE_URL
+
+Optionally specify the table name in the form "[SCHEMA.]TABLE_NAME" via environment variable:
+
+- MONOTREE_TABLE_NAME
+
+Default table name is "public.smt".
+
 ## Quick start
 > _from `examples/basic.rs`_
 
@@ -110,6 +121,14 @@ performs integration tests with full combinations of operations and tree types c
     ## Some tests are time consuming.
     ## --release is optional, but without it, it will take a longer time to complete the tests   
     $ cargo test --release
+```
+
+To include Postgres tests ensure environment variable MONOTREE_URL is set and run  
+
+```bash
+    ## Some tests are time consuming.
+    ## --release is optional, but without it, it will take a longer time to complete the tests   
+    $ cargo test --features "db-postgres" --release
 ```
 
 performs a micro-benchmark based on [`Criterion`](https://crates.io/crates/criterion), with full combinations of operations and tree types consisting of _Databases_ and _Hashers_ included.
