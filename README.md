@@ -2,7 +2,7 @@
 [![Crates.io](https://img.shields.io/crates/v/monotree.svg)](https://crates.io/crates/monotree)
 # Monotree
 Rust implementation of an optimized Sparse Merkle Tree.  
-This is a kind of binary-radix tree based on bitwise branching, _currently_, no nibble of bit. 
+This is a kind of binary-radix tree based on bitwise branching, _currently_, no nibble of bit.
 For now, branching unit is just ___a single bit___, _neither a 4-bit nor a byte nibble_.  
 
 ## Features
@@ -18,6 +18,7 @@ _Databases include_:
 - [`HashMap`](https://lib.rs/crates/hashbrown)
 - [`RocksDB`](https://lib.rs/crates/rocksdb)
 - [`Sled`](https://lib.rs/crates/sled)
+- [`Postgres`](https://lib.rs/crates/postgres)
 
 _Hashers include_:
 - [`Blake3`](https://lib.rs/crates/blake3)

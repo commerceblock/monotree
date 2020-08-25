@@ -3,9 +3,11 @@ use crate::*;
 use hashbrown::{HashMap, HashSet};
 use rocksdb::{WriteBatch, DB};
 use postgres::{Client, NoTls};
+use utils::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use utils::*;
+use std::env;
+
 
 struct MemCache {
     set: HashSet<Hash>,
@@ -260,6 +262,7 @@ impl Database for Sled {
 /// A database using rust wrapper for `PostgreSQL`.
 pub struct Postgres {
     db: Client,
+    table_name: String,
     batch: HashMap<Vec<u8>, Vec<u8>>,
     cache: MemCache,
     batch_on: bool,
@@ -275,18 +278,21 @@ impl Database for Postgres {
     fn new(dbpath: &str) -> Self {
         let mut conn = Client::connect(dbpath, NoTls).unwrap();
 
-        let _ = conn.execute(
-            "
-            CREATE TABLE IF NOT EXISTS smt (
-                key BYTEA,
-                value BYTEA,
-                PRIMARY KEY (key)
-            );",
-            &[]
-        ).unwrap(); // panic if fail to create table
+        // Get tables Schema and name if it is given. Default to public.smt
+        let table_name = env::var("MONTREE_TABLE_NAME").unwrap();
+
+        let stmt = conn.prepare(&format!(
+            "CREATE TABLE IF NOT EXISTS {} (
+            key BYTEA,
+            value BYTEA,
+            PRIMARY KEY (key)
+        );", table_name)).unwrap();
+
+        let _ = conn.execute(&stmt, &[]).unwrap(); // panic if fail to create table
 
         Postgres {
             db: conn,
+            table_name,
             batch: HashMap::new(),
             cache: MemCache::new(),
             batch_on: false,
@@ -297,11 +303,8 @@ impl Database for Postgres {
         if self.cache.contains(key) {
             return self.cache.get(key);
         }
-
-        let rows: Vec<postgres::Row> = self.db.query(
-            "SELECT value FROM smt WHERE key = $1",
-            &[&key])?;
-
+        let stmt = self.db.prepare(&format!("SELECT value FROM {} WHERE key = $1",self.table_name))?;
+        let rows: Vec<postgres::Row> = self.db.query(&stmt, &[&key])?;
         match rows.get(0) {
             None => Ok(None),
             Some(row) => {
@@ -317,30 +320,28 @@ impl Database for Postgres {
         self.cache.put(key, value.to_owned())?;
         if self.batch_on {
             let key_vec: Vec<u8> = key.iter().cloned().collect();
-            let _ = self.batch.insert(key_vec, value);
-            return Ok(());
+            self.batch.insert(key_vec, value);
         } else {
-            let _ = self.db.execute(
-                "INSERT INTO smt (key, value)
+            let stmt = self.db.prepare(&format!(
+                "INSERT INTO {} (key, value)
                 VALUES ($1, $2)
                 ON CONFLICT (key) DO UPDATE
-                SET value = EXCLUDED.value;",
-                &[&key, &value])?;
-            return Ok(());
+                SET value = EXCLUDED.value;"
+                ,self.table_name))?;
+            self.db.execute(&stmt, &[&key, &value])?;
         };
+        return Ok(());
     }
 
     fn delete(&mut self, key: &[u8]) -> Result<()> {
         self.cache.delete(key)?;
         if self.batch_on {
-            let _ = self.batch.remove(key);
-            return Ok(());
+            self.batch.remove(key);
         } else {
-            let _ = self.db.execute(
-                "DELETE FROM smt WHERE key = $1;",
-                &[&key])?;
-            return Ok(());
+            let stmt = self.db.prepare(&format!("DELETE FROM {} WHERE key = $1;",self.table_name))?;
+            self.db.execute(&stmt, &[&key])?;
         }
+        return Ok(());
     }
 
     fn init_batch(&mut self) -> Result<()> {
