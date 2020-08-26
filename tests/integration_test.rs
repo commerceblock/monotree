@@ -3,13 +3,14 @@ use monotree::hasher::*;
 use monotree::utils::*;
 use monotree::*;
 use std::fs;
-use std::env;
 
 extern crate paste;
 extern crate scopeguard;
 
 #[cfg(feature = "db-postgres")]
 use postgres::{Client, NoTls};
+#[cfg(feature = "db-postgres")]
+use std::env;
 
 fn insert_keys_then_verify_values<D: Database, H: Hasher>(
     mut tree: Monotree<D, H>,
@@ -230,7 +231,6 @@ macro_rules! impl_test_with_params {
     ($($other:tt)*) => {};
 }
 
-
 impl_test_with_params!(
     [
         insert_keys_then_verify_values,
@@ -250,6 +250,36 @@ impl_test_with_params!(
     ],
     [100, 500, 1000]
 );
+
+#[cfg(feature = "db-postgres")]
+macro_rules! impl_integration_test_postgres {
+    ($fn:ident, ($d:expr, $db:ident), ($h:expr, $hasher:ident), $n:expr) => {
+        paste::item_with_macros! {
+            #[test]
+            fn [<test_ $d _ $h _ $fn _ $n>]() -> Result<()> {
+                let dbname = env::var("MONOTREE_URL").unwrap();
+                postgres_db_reset(&dbname);
+                let keys = random_hashes($n);
+                let leaves = random_hashes($n);
+                let tree = Monotree::<$db, $hasher>::new(&dbname);
+                let hasher = $hasher::new();
+                let root: Option<Hash> = None;
+                $fn(tree, &hasher, root, &keys, &leaves)?;
+                Ok(())
+            }
+        }
+    };
+}
+
+/// panic if failure
+#[cfg(feature = "db-postgres")]
+fn postgres_db_reset(dbname: &String) {
+    let mut conn = Client::connect(dbname, NoTls).unwrap();
+    let table_name = env::var("MONOTREE_TABLE_NAME").unwrap_or("smt".to_string());
+
+    let stmt = conn.prepare(&format!("TRUNCATE {} RESTART IDENTITY;",table_name)).unwrap();
+    conn.execute(&stmt, &[]).unwrap();
+}
 
 #[cfg(feature = "db-postgres")]
 macro_rules! impl_test_with_params_postgres {
@@ -278,35 +308,6 @@ macro_rules! impl_test_with_params_postgres {
     };
 
     ($($other:tt)*) => {};
-}
-
-#[cfg(feature = "db-postgres")]
-macro_rules! impl_integration_test_postgres {
-    ($fn:ident, ($d:expr, $db:ident), ($h:expr, $hasher:ident), $n:expr) => {
-        paste::item_with_macros! {
-            #[test]
-            fn [<test_ $d _ $h _ $fn _ $n>]() -> Result<()> {
-                let dbname = env::var("MONOTREE_URL").unwrap();
-                postgres_db_reset(&dbname);
-                let keys = random_hashes($n);
-                let leaves = random_hashes($n);
-                let tree = Monotree::<$db, $hasher>::new(&dbname);
-                let hasher = $hasher::new();
-                let root: Option<Hash> = None;
-                $fn(tree, &hasher, root, &keys, &leaves)?;
-                Ok(())
-            }
-        }
-    };
-}
-
-#[cfg(feature = "db-postgres")]
-/// panic if failure
-fn postgres_db_reset(dbname: &String) {
-    let mut conn = Client::connect(dbname, NoTls).unwrap();
-    let table_name = env::var("MONOTREE_TABLE_NAME").unwrap_or("smt".to_string());
-    let stmt = conn.prepare(&format!("TRUNCATE {} RESTART IDENTITY;",table_name)).unwrap();
-    conn.execute(&stmt, &[]).unwrap();
 }
 
 #[cfg(feature = "db-postgres")]
