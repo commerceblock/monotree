@@ -328,5 +328,5 @@ impl_test_with_params_postgres!(
         ("sha2", Sha2),
         ("sha3", Sha3)
     ],
-    [100, 500, 1000]
+    [10, 50, 100]
 );
