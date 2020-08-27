@@ -12,9 +12,6 @@ use postgres::{Client, NoTls};
 #[cfg(feature = "db-postgres")]
 use std::env;
 
-#[macro_use]
-extern crate serial_test;
-
 fn insert_keys_then_verify_values<D: Database, H: Hasher>(
     mut tree: Monotree<D, H>,
     _hasher: &H,
@@ -259,16 +256,21 @@ macro_rules! impl_integration_test_postgres {
     ($fn:ident, ($d:expr, $db:ident), ($h:expr, $hasher:ident), $n:expr) => {
         paste::item_with_macros! {
             #[test]
-            #[serial]
             fn [<test_ $d _ $h _ $fn _ $n>]() -> Result<()> {
                 let keys = random_hashes($n);
                 let leaves = random_hashes($n);
+
                 let dbname = env::var("MONOTREE_URL").unwrap();
-                let tree = Monotree::<$db, $hasher>::new(&dbname);
-                postgres_db_reset(&dbname);
+                let mut table_name = env::var("MONOTREE_TABLE_NAME").unwrap_or("smt".to_string());
+                table_name.push_str(&hex!(random_bytes(4)));
+                let postgresinfo = &serde_json::to_string(&PostgresDbInfo::new(dbname, table_name)).unwrap();
+
+                let tree = Monotree::<$db, $hasher>::new(&postgresinfo);
                 let hasher = $hasher::new();
                 let root: Option<Hash> = None;
                 $fn(tree, &hasher, root, &keys, &leaves)?;
+
+                postgres_db_destroy(&postgresinfo);
                 Ok(())
             }
         }
@@ -277,13 +279,12 @@ macro_rules! impl_integration_test_postgres {
 
 // panic if failure
 #[cfg(feature = "db-postgres")]
-fn postgres_db_reset(dbname: &String) {
-    let mut conn = Client::connect(dbname, NoTls).unwrap();
-    let table_name = env::var("MONOTREE_TABLE_NAME").unwrap_or("smt".to_string());
-    let stmt = conn.prepare(&format!("TRUNCATE {};",table_name)).unwrap();
+fn postgres_db_destroy(postgresinfo: &String) {
+    let postgresinfo: PostgresDbInfo = serde_json::from_str(postgresinfo).unwrap();
+    let mut conn = Client::connect(&postgresinfo.url, NoTls).unwrap();
+    let stmt = conn.prepare(&format!("DROP TABLE {};",postgresinfo.table_name)).unwrap();
     conn.execute(&stmt, &[]).unwrap();
 }
-
 
 #[cfg(feature = "db-postgres")]
 macro_rules! impl_test_with_params_postgres {
@@ -317,20 +318,20 @@ macro_rules! impl_test_with_params_postgres {
 #[cfg(feature = "db-postgres")]
 impl_test_with_params_postgres!(
     [
-    insert_keys_then_verify_values,
-    insert_keys_then_gen_and_verify_proof,
-    insert_keys_then_delete_keys_immediately,
-    insert_keys_then_delete_keys_in_order,
-    insert_keys_then_delete_keys_reversely,
-    insert_keys_then_delete_keys_randomly
+        insert_keys_then_verify_values,
+        insert_keys_then_gen_and_verify_proof,
+        insert_keys_then_delete_keys_immediately,
+        insert_keys_then_delete_keys_in_order,
+        insert_keys_then_delete_keys_reversely,
+        insert_keys_then_delete_keys_randomly
     ],
     [("postgres", Postgres)],
     [
-    ("blake3", Blake3),
-    ("blake2s", Blake2s),
-    ("blake2b", Blake2b),
-    ("sha2", Sha2),
-    ("sha3", Sha3)
+        ("blake3", Blake3),
+        ("blake2s", Blake2s),
+        ("blake2b", Blake2b),
+        ("sha2", Sha2),
+        ("sha3", Sha3)
     ],
     [10, 50, 100]
 );

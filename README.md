@@ -27,15 +27,15 @@ _Hashers include_:
 - [`SHA-3 (Keccak)`](https://lib.rs/crates/sha3)
 
 ### Postgres
-To use a Postgres database instance use the "db-postgres" feature flag and provide the database location via environment variable:
+To use a Postgres database instance use the "db-postgres" feature flag. The Database url and Database name
+must be passed via a `PostgresDbInfo` struct serialized to String.
 
-- MONOTREE_URL
+```rust
+    let postgres_info = serde_json::to_string(&PostgresDbInfo::new(dbname, table_name))?;
+    let tree = Monotree::<Postgres, Blake3>::new(&postgresinfo);
 
-Optionally specify the table name in the form "[SCHEMA.]TABLE_NAME" via environment variable:
+```
 
-- MONOTREE_TABLE_NAME
-
-Default table name is "public.smt".
 
 ## Quick start
 > _from `examples/basic.rs`_
@@ -123,7 +123,15 @@ performs integration tests with full combinations of operations and tree types c
     $ cargo test --release
 ```
 
-To include Postgres tests ensure environment variable MONOTREE_URL is set and run  
+To include Postgres tests point to your Postgres instance via environment variable:
+
+- MONOTREE_URL
+
+Optionally specify the table name in the form "[SCHEMA.]TABLE_NAME" via environment variable:
+
+- MONOTREE_TABLE_NAME
+
+Default table name is "public.smt".
 
 ```bash
     ## Some tests are time consuming.

@@ -9,7 +9,7 @@ use rocksdb::{WriteBatch, DB};
 #[cfg(feature = "db-postgres")]
 use postgres::{Client, NoTls};
 #[cfg(feature = "db-postgres")]
-use std::env;
+use serde::{Serialize, Deserialize};
 
 
 struct MemCache {
@@ -286,25 +286,37 @@ impl From<postgres::Error> for Errors {
 }
 
 #[cfg(feature = "db-postgres")]
-impl Database for Postgres {
-    fn new(dbpath: &str) -> Self {
-        let mut conn = Client::connect(dbpath, NoTls).unwrap();
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PostgresDbInfo {
+    pub url: String,
+    pub table_name: String
+}
+#[cfg(feature = "db-postgres")]
+impl PostgresDbInfo {
+    pub fn new(url: String, table_name: String) -> Self {
+        PostgresDbInfo { url, table_name }
+    }
+}
 
-        // Get tables Schema and name if it is given. Default to public.smt
-        let table_name = env::var("MONOTREE_TABLE_NAME").unwrap_or("smt".to_string());
+#[cfg(feature = "db-postgres")]
+impl Database for Postgres {
+    fn new(postgresinfo: &str) -> Self {
+        // Get url and table_name from input str
+        let postgresinfo: PostgresDbInfo = serde_json::from_str(postgresinfo).unwrap();
+        let mut conn = Client::connect(&postgresinfo.url, NoTls).unwrap();
 
         let stmt = conn.prepare(&format!(
             "CREATE TABLE IF NOT EXISTS {} (
             key integer[],
             value integer[],
             PRIMARY KEY (key)
-        );", table_name)).unwrap();
+        );", postgresinfo.table_name)).unwrap();
 
         let _ = conn.execute(&stmt, &[]).unwrap(); // panic if fail to create table
 
         Postgres {
             db: conn,
-            table_name,
+            table_name: postgresinfo.table_name,
             batch: HashMap::new(),
             cache: MemCache::new(),
             batch_on: false,
