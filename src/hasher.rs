@@ -45,11 +45,11 @@ impl Hasher for Blake2b {
     }
 }
 
-#[cfg(feature = "default")]
+#[cfg(feature = "hasher-blake3")]
 #[derive(Clone, Debug)]
 /// A hasher using `Blake3` hash function
 pub struct Blake3;
-#[cfg(feature = "default")]
+#[cfg(feature = "hasher-blake3")]
 impl Hasher for Blake3 {
     fn new() -> Self {
         Blake3
