@@ -307,8 +307,8 @@ impl Database for Postgres {
 
         let stmt = conn.prepare(&format!(
             "CREATE TABLE IF NOT EXISTS {} (
-            key integer[],
-            value integer[],
+            key varchar,
+            value varchar,
             PRIMARY KEY (key)
         );", postgresinfo.table_name)).unwrap();
 
@@ -327,14 +327,16 @@ impl Database for Postgres {
         if self.cache.contains(key) {
             return self.cache.get(key);
         }
-        let stmt = self.db.prepare(&format!("SELECT value FROM {} WHERE key = $1",self.table_name))?;
-        let rows: Vec<postgres::Row> = self.db.query(&stmt, &[&key])?;
+        let stmt = self.db.prepare(&format!(
+            "SELECT value FROM {} WHERE key = ('{}')"
+            ,self.table_name, serde_json::to_string(&key).unwrap()))?;
+        let rows: Vec<postgres::Row> = self.db.query(&stmt, &[])?;
         match rows.get(0) {
             None => Ok(None),
             Some(row) => {
                 match row.try_get(0) {
                     Err(_) => Ok(None),
-                    Ok(data) => Ok(Some(data))
+                    Ok(data) => Ok(Some(serde_json::from_str(data).unwrap()))
                 }
             }
         }
@@ -348,10 +350,12 @@ impl Database for Postgres {
         } else {
             let stmt = self.db.prepare(&format!(
                 "INSERT INTO {} (key, value)
-                VALUES (ARRAY{:?}, ARRAY{:?})
+                VALUES ('{}','{}')
                 ON CONFLICT (key) DO UPDATE
-                SET value = EXCLUDED.value;"
-                ,self.table_name, key, value))?;
+                SET value = EXCLUDED.value;",
+                self.table_name,
+                serde_json::to_string(&key).unwrap(),
+                serde_json::to_string(&value).unwrap()))?;
             self.db.execute(&stmt, &[])?;
         };
         return Ok(());
@@ -362,8 +366,10 @@ impl Database for Postgres {
         if self.batch_on {
             self.batch.remove(key);
         } else {
-            let stmt = self.db.prepare(&format!("DELETE FROM {} WHERE key = $1;",self.table_name))?;
-            self.db.execute(&stmt, &[&key])?;
+            let stmt = self.db.prepare(&format!(
+                "DELETE FROM {} WHERE key = ('{}');",
+                self.table_name, serde_json::to_string(&key).unwrap()))?;
+            self.db.execute(&stmt, &[])?;
         }
         return Ok(());
     }
@@ -381,7 +387,9 @@ impl Database for Postgres {
             let batch = std::mem::take(&mut self.batch);
             let mut stmt_str = format!("INSERT INTO {} (key, value) VALUES", self.table_name);
             for (key, value) in batch.iter() {
-                stmt_str.push_str(&format!(" (ARRAY{:?},ARRAY{:?}),", key, value));
+                stmt_str.push_str(&format!(" ('{}','{}'),",
+                serde_json::to_string(&key).unwrap(),
+                serde_json::to_string(&value).unwrap()));
             }
             stmt_str.truncate(stmt_str.len() - 1);
             stmt_str.push_str(" ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;");
