@@ -6,36 +6,36 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use utils::*;
 
-struct MemCache {
+pub struct MemCache {
     set: HashSet<Hash>,
     map: HashMap<Hash, Vec<u8>>,
 }
 
 impl MemCache {
-    fn new() -> Self {
+    pub fn new() -> Self {
         MemCache {
             set: HashSet::new(),
             map: HashMap::with_capacity(1 << 12),
         }
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.set.clear();
         self.map.clear();
     }
 
-    fn contains(&self, key: &[u8]) -> bool {
+    pub fn contains(&self, key: &[u8]) -> bool {
         self.set.contains(key) || self.map.contains_key(key)
     }
 
-    fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+    pub fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         match self.map.get(key) {
             Some(v) => Ok(Some(v.to_owned())),
             None => Ok(None),
         }
     }
 
-    fn put(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
+    pub fn put(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
         self.map.insert(slice_to_hash(key), value);
         if self.set.contains(key) {
             self.set.remove(key);
@@ -43,7 +43,7 @@ impl MemCache {
         Ok(())
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<()> {
+    pub fn delete(&mut self, key: &[u8]) -> Result<()> {
         self.map.remove(key);
         self.set.insert(slice_to_hash(key));
         Ok(())

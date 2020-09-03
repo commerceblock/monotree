@@ -5,8 +5,8 @@ use crate::*;
 /// A structure for `monotree`.
 #[derive(Debug)]
 pub struct Monotree<D = DefaultDatabase, H = DefaultHasher> {
-    db: D,
-    hasher: H,
+    pub db: D,
+    pub hasher: H,
 }
 
 impl Default for Monotree<DefaultDatabase, DefaultHasher> {
@@ -44,7 +44,7 @@ where
         Ok(Some(hash))
     }
 
-    /// Recursively insert a bytes (in forms of Bits) and a leaf into the tree.  
+    /// Recursively insert a bytes (in forms of Bits) and a leaf into the tree.
     ///
     /// Optimization in `monotree` is mainly to compress the path as much as possible
     /// while reducing the number of db accesses using the most intuitive model.
@@ -52,9 +52,9 @@ where
     /// this reduces the number of DB accesses from `N` to `log2(N)` in both reads and writes.
     ///
     /// Whenever invoked a `put()` call, at least, more than one `put_node()` called,
-    /// which triggers a single hash digest + a single DB write.  
+    /// which triggers a single hash digest + a single DB write.
     /// Compressing the path recudes the number of `put()` calls, which yields
-    /// reducing the number of hash function calls as well as the number of DB writes.  
+    /// reducing the number of hash function calls as well as the number of DB writes.
     ///
     /// There are four modes when putting the entries.
     /// And each of them is processed in a (recursive) `put()` call.
