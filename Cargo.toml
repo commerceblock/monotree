@@ -10,21 +10,32 @@ license = "MIT OR Apache-2.0"
 keywords = ["sparse", "merkle", "radix", "blockchain", "merkletrie"]
 categories = ["algorithms", "data-structures", "cryptography::cryptocurrencies"]
 
+[features]
+default = ["hasher-blake2", "hasher-blake3", "hasher-sha2", "hasher-sha3", "db-rocks", "db-sled"]
+hasher-blake2 = ["blake2-rfc"]
+hasher-blake3 = ["blake3"]
+hasher-sha2 = ["sha2"]
+hasher-sha3 = ["sha3"]
+db-rocks = ["rocksdb"]
+db-sled = ["sled"]
+db-postgres = ["postgres"]
+
 [dependencies]
 rand = "0.7.3"
 hex = "0.4.1"
 num = "0.2.1"
 hashbrown = "0.7"
-blake2-rfc = "0.2.18"
-blake3 = "0.2.2"
 digest = "0.8.1"
-sha2 = "0.8.1"
-sha3 = "0.8.2"
-rocksdb = "0.13.0"
-sled = "0.31.0"
 scopeguard = "1.1.0"
 paste = "0.1.7"
 criterion = "0.3"
+blake2-rfc = { version = "0.2.18", optional = true}
+blake3 = { version = "0.2.2", optional = true}
+sha2 = { version = "0.8.1", optional = true}
+sha3 = { version = "0.8.2", optional = true}
+rocksdb = { version = "0.13.0", optional = true}
+sled = { version = "0.31.0", optional = true}
+postgres = { version = "0.17.5", optional = true }
 
 [[bench]]
 name = "benchmark"

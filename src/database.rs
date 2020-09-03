@@ -1,10 +1,12 @@
 //! A module for implementing database supporting `monotree`.
 use crate::*;
 use hashbrown::{HashMap, HashSet};
-use rocksdb::{WriteBatch, DB};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use utils::*;
+
+#[cfg(feature = "db-rocks")]
+use rocksdb::{WriteBatch, DB};
 
 pub struct MemCache {
     set: HashSet<Hash>,
@@ -96,6 +98,7 @@ impl Database for MemoryDB {
     }
 }
 
+#[cfg(feature = "db-rocks")]
 /// A database using rust wrapper for `RocksDB`.
 pub struct RocksDB {
     db: Arc<Mutex<DB>>,
@@ -103,13 +106,13 @@ pub struct RocksDB {
     cache: MemCache,
     batch_on: bool,
 }
-
+#[cfg(feature = "db-rocks")]
 impl From<rocksdb::Error> for Errors {
     fn from(err: rocksdb::Error) -> Self {
         Errors::new(&err.to_string())
     }
 }
-
+#[cfg(feature = "db-rocks")]
 impl Database for RocksDB {
     fn new(dbpath: &str) -> Self {
         let db = Arc::new(Mutex::new(
@@ -175,6 +178,7 @@ impl Database for RocksDB {
     }
 }
 
+#[cfg(feature = "db-sled")]
 /// A database using `Sled`, a pure-rust-implmented DB.
 pub struct Sled {
     db: sled::Db,
@@ -182,20 +186,20 @@ pub struct Sled {
     cache: MemCache,
     batch_on: bool,
 }
-
+#[cfg(feature = "db-sled")]
 impl From<sled::Error> for Errors {
     fn from(err: sled::Error) -> Self {
         Errors::new(&err.to_string())
     }
 }
-
+#[cfg(feature = "db-sled")]
 impl Sled {
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
         Ok(())
     }
 }
-
+#[cfg(feature = "db-sled")]
 impl Database for Sled {
     fn new(dbpath: &str) -> Self {
         let db = sled::open(dbpath).expect("new(): sledDB");

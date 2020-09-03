@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     // Monotree::<DATABASE, HASHER>::new(DB_PATH)
     // where DATABASE = {MemoryDB, RocksDB, Sled}
     //         HASHER = {Blake3, Blake2s, Blake2b, Sha2, Sha3}
-    let mut tree = Monotree::<RocksDB, Blake2b>::new("/tmp/monotree");
+    let mut tree = Monotree::<MemoryDB, Blake3>::new("/tmp/monotree");
 
     // It is natural the tree root initially has 'None'
     let root = None;
@@ -58,7 +58,7 @@ fn main() -> Result<()> {
 
     // To verify the proof correctly, you need to provide a hasher matched
     // Previously the tree was initialized with `Blake2b`
-    let hasher = Blake2b::new();
+    let hasher = Blake3::new();
 
     // get a leaf matched with the key: where the Merkle proof verification starts off
     let leaf = leaves[99];
